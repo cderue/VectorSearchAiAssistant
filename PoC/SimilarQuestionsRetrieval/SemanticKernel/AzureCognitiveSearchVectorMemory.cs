@@ -173,12 +173,6 @@ namespace SimilarQuestionsRetrieval.SemanticKernel
                 {
                     await foreach (SearchResult<SearchDocument> result in searchResult.GetResultsAsync())
                     {
-
-                        Console.WriteLine($"Title: {result.Document["title"]}");
-                        Console.WriteLine($"Score: {result.Score}\n");
-                        Console.WriteLine($"Content: {result.Document["categoryName"]}");
-                        Console.WriteLine($"Category: {result.Document["description"]}\n");
-
                         if (result.Score < minRelevanceScore) { break; }
 
                         yield return new MemoryQueryResult(ToMemoryRecordMetadata(result), result.Score ?? 1, null);

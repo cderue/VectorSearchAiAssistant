@@ -80,5 +80,10 @@ namespace SimilarQuestionsRetrieval
 
             Console.ReadLine();
         }
+
+        private async Task<string> SearchMemoriesAsync(string query)
+        {
+
+        }
     }
 }
