@@ -6,6 +6,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using SimilarQuestionsRetrieval.SemanticKernel;
+using Microsoft.SemanticKernel.AI.ChatCompletion;
+using Microsoft.SemanticKernel.AI.Embeddings;
 
 namespace SimilarQuestionsRetrieval
 {
@@ -23,18 +26,23 @@ namespace SimilarQuestionsRetrieval
             var builder = new KernelBuilder();
 
             builder.WithAzureTextEmbeddingGenerationService(
-                _settings.OpenAIDeploymentName,
+                _settings.OpenAIEmbeddingDeploymentName,
                 _settings.OpenAIEndpoint,
                 _settings.OpenAIKey);
 
-            //builder.WithAzureTextCompletionService(model, azureEndpoint, apiKey);
-
-
-            builder.WithMemoryStorage(new VolatileMemoryStore());
+            builder.WithAzureChatCompletionService(
+                _settings.OpenAICompletionDeploymentName, 
+                _settings.OpenAIEndpoint,
+                _settings.OpenAIKey);
 
             _semanticKernel = builder.Build();
 
-            _memoryCollectionName = "questions";
+            _semanticKernel.RegisterMemory(new AzureCognitiveSearchVectorMemory(
+                _settings.CognitiveSearchEndpoint,
+                _settings.CognitiveSearchKey,
+                _semanticKernel.GetService<ITextEmbeddingGeneration>()));
+
+            _memoryCollectionName = "vector-index";
         }
 
         public async Task AddQuestion(Question question)
@@ -51,7 +59,17 @@ namespace SimilarQuestionsRetrieval
         {
             var newQuestion = "I am looking to buy a hat, can you help me?";
 
-            var matchingQuestions = await _semanticKernel.Memory.SearchAsync(_memoryCollectionName, newQuestion).Take(3).ToListAsync();
+            string systemPrompt = "You are an online store assistant.";
+            var chat = _semanticKernel.GetService<IChatCompletion>();
+
+            var chatHistory = chat.CreateNewChat(systemPrompt);
+
+            var matchingQuestions = await _semanticKernel.Memory.SearchAsync(_memoryCollectionName, newQuestion, withEmbeddings: true).Take(3).ToListAsync();
+            chatHistory.AddUserMessage(newQuestion);
+            var reply = await chat.GenerateMessageAsync(chatHistory, new ChatRequestSettings());
+            chatHistory.AddAssistantMessage(reply);
+
+            
 
             Console.WriteLine($"Your question: {newQuestion}");
             Console.WriteLine();
