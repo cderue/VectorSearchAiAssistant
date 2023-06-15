@@ -16,9 +16,9 @@ using System.Text.Json;
 
 namespace SimilarQuestionsRetrieval
 {
-    public class QuestionMatchingService : IQuestionMatchingService
+    public class SemanticKernelRAGService : IRAGService
     {
-        readonly QuestionMatchingServiceSettings _settings;
+        readonly SemanticKernelRAGServiceSettings _settings;
         readonly IKernel _semanticKernel;
         readonly string _memoryCollectionName = "vector-index";
 
@@ -34,8 +34,8 @@ namespace SimilarQuestionsRetrieval
 
         Text of relevant information:";
 
-        public QuestionMatchingService(
-            IOptions<QuestionMatchingServiceSettings> options)
+        public SemanticKernelRAGService(
+            IOptions<SemanticKernelRAGServiceSettings> options)
         {
             _settings = options.Value;
 
@@ -59,17 +59,7 @@ namespace SimilarQuestionsRetrieval
                 _semanticKernel.GetService<ITextEmbeddingGeneration>()));
         }
 
-        public async Task AddQuestion(Question question)
-        {
-            await _semanticKernel.Memory.SaveInformationAsync(_memoryCollectionName, id: question.Id, text: question.Text);
-        }
-
-        public Task<IEnumerable<Question>> GetSimilarQuestions(Question question)
-        {
-            throw new NotImplementedException();
-        }
-
-        public async Task RunDemo(string userPrompt)
+        public async Task<string> GetResponse(string userPrompt)
         {
             var matchingMemories = await SearchMemoriesAsync(userPrompt);
 
@@ -81,13 +71,8 @@ namespace SimilarQuestionsRetrieval
 
             var reply = await chat.GenerateMessageAsync(chatHistory, new ChatRequestSettings());
             chatHistory.AddAssistantMessage(reply);
-            
 
-            Console.WriteLine($"Your prompt: {userPrompt}");
-            Console.WriteLine();
-            Console.WriteLine($"My response: {reply}");
-
-            Console.ReadLine();
+            return reply;
         }
 
         private async Task<string> SearchMemoriesAsync(string query)

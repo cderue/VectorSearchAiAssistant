@@ -12,16 +12,20 @@ var configuration = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .Build();
 
-services.Configure<QuestionMatchingServiceSettings>(configuration.GetSection("MSCosmosDBOpenAI"));
+services.Configure<SemanticKernelRAGServiceSettings>(configuration.GetSection("MSCosmosDBOpenAI"));
 
-services.AddTransient<IQuestionMatchingService, QuestionMatchingService>();
+services.AddTransient<IRAGService, SemanticKernelRAGService>();
 
 var serviceProvider = services.BuildServiceProvider();
 
 
-var qm = serviceProvider.GetService<IQuestionMatchingService>();
+var qm = serviceProvider.GetService<IRAGService>();
 
 var userPrompt = "I am looking to buy a hat, can you help me?";
-await qm.RunDemo(userPrompt);
+Console.WriteLine($"Your request:{Environment.NewLine}{userPrompt}");
+
+var response = await qm.GetResponse(userPrompt);
+
+Console.WriteLine($"My reposnse:{Environment.NewLine}{response}");
 
 Console.ReadLine();

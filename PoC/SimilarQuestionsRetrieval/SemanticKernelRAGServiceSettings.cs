@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace SimilarQuestionsRetrieval
 {
-    public class QuestionMatchingServiceSettings
+    public class SemanticKernelRAGServiceSettings
     {
         public string OpenAIKey { get; set; }
         public string OpenAIEmbeddingDeploymentName { get; set; }

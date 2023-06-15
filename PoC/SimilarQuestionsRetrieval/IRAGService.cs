@@ -6,9 +6,8 @@ using System.Threading.Tasks;
 
 namespace SimilarQuestionsRetrieval
 {
-    public class Question
+    public interface IRAGService
     {
-        public string Id { get; set; }
-        public string Text { get; set; }
+        Task<string> GetResponse(string userPrompt);
     }
 }
