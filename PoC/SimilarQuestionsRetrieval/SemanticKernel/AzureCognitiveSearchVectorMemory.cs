@@ -16,6 +16,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.SemanticKernel.AI.Embeddings;
+using System.Text.Json;
+using System.Collections;
 
 namespace SimilarQuestionsRetrieval.SemanticKernel
 {
@@ -30,6 +32,8 @@ namespace SimilarQuestionsRetrieval.SemanticKernel
         private readonly ConcurrentDictionary<string, SearchClient> _clientsByIndex = new();
 
         private readonly ITextEmbeddingGeneration _textEmbedding;
+
+        private const string VectorFieldName = "vector";
 
         /// <summary>
         /// Create a new instance of semantic memory using Azure Cognitive Search.
@@ -152,7 +156,7 @@ namespace SimilarQuestionsRetrieval.SemanticKernel
                 var embedding = await _textEmbedding.GenerateEmbeddingAsync(query);
 
                 // Perform the vector similarity search  
-                var vector = new SearchQueryVector { K = limit, Fields = "vector", Value = embedding.Vector.ToList() };
+                var vector = new SearchQueryVector { K = limit, Fields = VectorFieldName, Value = embedding.Vector.ToList() };
                 var searchOptions = new SearchOptions
                 {
                     Vector = vector,
@@ -354,13 +358,40 @@ namespace SimilarQuestionsRetrieval.SemanticKernel
 
         private static MemoryRecordMetadata ToMemoryRecordMetadata(SearchResult<SearchDocument> data)
         {
+            var filteredDocument = new SearchDocument();
+            var searchDocument = data.Document;
+            foreach (var property in searchDocument)
+            {
+                // Exclude null properties, empty arrays/lists, and the "vector" property.
+                // This helps minimize the amount of data and also eliminates fields that may only relate to other document types.
+                if (property.Value != null && property.Key != VectorFieldName && !IsEmptyArrayOrList(property.Value))
+                {
+                    filteredDocument[property.Key] = property.Value;
+                }
+            }
+
             return new MemoryRecordMetadata(
                 isReference: false,
                 id: data.Document["id"].ToString(),
                 text: data.Document["name"].ToString(),
                 description: data.Document["description"].ToString(),
                 externalSourceName: string.Empty,
-                additionalMetadata: string.Empty);
+                additionalMetadata: JsonSerializer.Serialize(filteredDocument, new JsonSerializerOptions { WriteIndented = false }));
+        }
+
+        private static bool IsEmptyArrayOrList(object value)
+        {
+            if (value is Array array)
+            {
+                return array.Length == 0;
+            }
+
+            if (value is IList list)
+            {
+                return list.Count == 0;
+            }
+
+            return false;
         }
 
         /// <summary>

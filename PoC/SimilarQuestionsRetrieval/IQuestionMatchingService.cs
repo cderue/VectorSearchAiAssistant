@@ -8,7 +8,7 @@ namespace SimilarQuestionsRetrieval
 {
     public interface IQuestionMatchingService
     {
-        Task RunDemo();
+        Task RunDemo(string userPrompt);
         Task AddQuestion(Question question);
         Task<IEnumerable<Question>> GetSimilarQuestions(Question question);
     }

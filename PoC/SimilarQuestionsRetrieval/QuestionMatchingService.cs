@@ -9,6 +9,10 @@ using System.Threading.Tasks;
 using SimilarQuestionsRetrieval.SemanticKernel;
 using Microsoft.SemanticKernel.AI.ChatCompletion;
 using Microsoft.SemanticKernel.AI.Embeddings;
+using Azure.AI.OpenAI;
+using Azure.Search.Documents.Models;
+using Azure.Search.Documents;
+using System.Text.Json;
 
 namespace SimilarQuestionsRetrieval
 {
@@ -16,7 +20,19 @@ namespace SimilarQuestionsRetrieval
     {
         readonly QuestionMatchingServiceSettings _settings;
         readonly IKernel _semanticKernel;
-        readonly string _memoryCollectionName;
+        readonly string _memoryCollectionName = "vector-index";
+
+        private readonly string _systemPromptRetailAssistant = @"
+        You are an intelligent assistant for the Cosmic Works Bike Company. 
+        You are designed to provide helpful answers to user questions about 
+        product, product category, customer and sales order (salesOrder) information provided in JSON format below.
+
+        Instructions:
+        - Only answer questions related to the information provided below,
+        - Don't reference any product, customer, or salesOrder data not provided below.
+        - If you're unsure of an answer, you can say ""I don't know"" or ""I'm not sure"" and recommend users search themselves.
+
+        Text of relevant information:";
 
         public QuestionMatchingService(
             IOptions<QuestionMatchingServiceSettings> options)
@@ -41,8 +57,6 @@ namespace SimilarQuestionsRetrieval
                 _settings.CognitiveSearchEndpoint,
                 _settings.CognitiveSearchKey,
                 _semanticKernel.GetService<ITextEmbeddingGeneration>()));
-
-            _memoryCollectionName = "vector-index";
         }
 
         public async Task AddQuestion(Question question)
@@ -55,35 +69,47 @@ namespace SimilarQuestionsRetrieval
             throw new NotImplementedException();
         }
 
-        public async Task RunDemo()
+        public async Task RunDemo(string userPrompt)
         {
-            var newQuestion = "I am looking to buy a hat, can you help me?";
+            var matchingMemories = await SearchMemoriesAsync(userPrompt);
 
-            string systemPrompt = "You are an online store assistant.";
             var chat = _semanticKernel.GetService<IChatCompletion>();
 
-            var chatHistory = chat.CreateNewChat(systemPrompt);
+            var chatHistory = chat.CreateNewChat($"{_systemPromptRetailAssistant}{matchingMemories}");
 
-            var matchingQuestions = await _semanticKernel.Memory.SearchAsync(_memoryCollectionName, newQuestion, withEmbeddings: true).Take(3).ToListAsync();
-            chatHistory.AddUserMessage(newQuestion);
+            chatHistory.AddUserMessage(userPrompt);
+
             var reply = await chat.GenerateMessageAsync(chatHistory, new ChatRequestSettings());
             chatHistory.AddAssistantMessage(reply);
-
             
 
-            Console.WriteLine($"Your question: {newQuestion}");
+            Console.WriteLine($"Your prompt: {userPrompt}");
             Console.WriteLine();
-            Console.WriteLine($"Questions already asked that are similar to yours:");
-
-            foreach (var matchingQuestion in matchingQuestions)
-                Console.WriteLine($"Id: {matchingQuestion.Metadata.Id}, Question: {matchingQuestion.Metadata.Text}");
+            Console.WriteLine($"My response: {reply}");
 
             Console.ReadLine();
         }
 
         private async Task<string> SearchMemoriesAsync(string query)
         {
+            var retDocs = new List<string>();
+            string resultDocuments = string.Empty;
 
+            try
+            {
+                var searchResults = await _semanticKernel.Memory
+                    .SearchAsync(_memoryCollectionName, query, limit:10, withEmbeddings: true)
+                    .ToListAsync();
+
+                return string.Join(Environment.NewLine + "-", 
+                    searchResults.Select(sr => sr.Metadata.AdditionalMetadata));
+            }
+            catch (Exception ex)
+            {
+                //_logger.LogError($"There was an error conducting a vector search: {ex.Message}");
+            }
+
+            return resultDocuments;
         }
     }
 }
